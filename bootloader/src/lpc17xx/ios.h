@@ -33,12 +33,15 @@
 #define INPUT 0
 #define OUTPUT 1
 
-#define HIGH 1
-#define LOW 0
 
 
-void digital_write(uint8_t portNum, uint32_t bitValue, uint8_t dir);
-void pin_mode(uint8_t portNum, uint32_t bitValue, uint8_t dir);
-uint32_t digital_read(uint8_t portNum, uint32_t bitValue);
+//void pin_mode(uint8_t portNum, uint32_t bitValue, uint8_t dir);
+//void     digital_write(uint8_t portNum, uint32_t bitmask, uint8_t bitValue);
+//uint32_t digital_read(uint8_t portNum, uint32_t bitmask);
+
+#define pin_mode(port, bitMask, value)      GPIO_SetDir(port, bitMask, value)
+#define digital_write(port, bitMask, value) FIO_SetMask(port, bitMask, value)
+
+#define digital_read(port, bitMask)         ((GPIO_ReadValue(port) & (bitMask))?1:0)
 
 #endif

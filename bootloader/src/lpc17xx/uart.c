@@ -27,13 +27,14 @@
   POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "uart.h"   // hal_
 #include "lpc17xx_uart.h"
 #include "lpc17xx_pinsel.h"
 
-#include "config_pins.h"
+#include "uart.h"
 
-void hal_uart_init(void)
+#include "board.h"
+
+void uart_init(void)
 {
 	// UART Configuration structure variable
 	UART_CFG_Type UARTConfigStruct;
@@ -44,16 +45,18 @@ void hal_uart_init(void)
 
 	/*
 	* Initialize UART pin connect: 
-	* P4.28 -> TXD3; P4.29 -> RXD3
 	* P0.2 -> TXD0, P0.3 -> RXD0
+	* P4.28 -> TXD3; P4.29 -> RXD3
 	*/
 	PinCfg.Funcnum = PINSEL_FUNC_1;
 	PinCfg.OpenDrain = PINSEL_PINMODE_NORMAL;
 	PinCfg.Pinmode = PINSEL_PINMODE_PULLUP;
-	PinCfg.Portnum = DBG_UART_PORT;
-	PinCfg.Pinnum = DBG_UART_TX_PIN;
+	PinCfg.Portnum = BL_UART_TX_PORT;
+	PinCfg.Pinnum = BL_UART_TX_PIN;
 	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Pinnum = DBG_UART_RX_PIN;
+
+	PinCfg.Portnum = BL_UART_RX_PORT;
+	PinCfg.Pinnum = BL_UART_RX_PIN;
 	PINSEL_ConfigPin(&PinCfg);
 
 	/* Initialize UART Configuration parameter structure to default state:
@@ -63,10 +66,10 @@ void hal_uart_init(void)
 		* None parity
 		*/
 	UART_ConfigStructInit(&UARTConfigStruct);
-	UARTConfigStruct.Baud_rate = 57600;
+	UARTConfigStruct.Baud_rate = BL_BAUD_RATE;
 
 	// Initialize UART0 peripheral with given to corresponding parameter
-	UART_Init((LPC_UART_TypeDef *)DBG_UART, &UARTConfigStruct);
+	UART_Init((LPC_UART_TypeDef *)BL_UART, &UARTConfigStruct);
 
 	/* Initialize FIFOConfigStruct to default state:
 	*                              - FIFO_DMAMode = DISABLE
@@ -77,33 +80,54 @@ void hal_uart_init(void)
 	*/
 	UART_FIFOConfigStructInit(&UARTFIFOConfigStruct);
 
-	// Initialize FIFO for UART3 peripheral
-	UART_FIFOConfig((LPC_UART_TypeDef *)DBG_UART, &UARTFIFOConfigStruct);
+	// Initialize FIFO for UART peripheral
+	UART_FIFOConfig((LPC_UART_TypeDef *)BL_UART, &UARTFIFOConfigStruct);
 
 	// Enable UART Transmit
-	UART_TxCmd((LPC_UART_TypeDef *)DBG_UART, ENABLE);
+	UART_TxCmd((LPC_UART_TypeDef *)BL_UART, ENABLE);
 }
 
-char hal_uart_data_available(void)
+bool uart_data_available(void)
 {
-	return (DBG_UART->LSR & UART_LSR_RDR);
+	return (BL_UART->LSR & UART_LSR_RDR);
 }
 
-char hal_uart_receive(void)
+char uart_receive(void)
 {
-	return (UART_ReceiveByte((LPC_UART_TypeDef *)DBG_UART));
+	return (UART_ReceiveByte((LPC_UART_TypeDef *)BL_UART));
 }
 
-void hal_uart_send(char byte)
+char uart_receive_wait(void)
 {
-	while (!(DBG_UART->LSR & UART_LSR_THRE)) ;
-	UART_SendByte((LPC_UART_TypeDef *)DBG_UART, byte);
+    while (!uart_data_available()) {};
+    return (UART_ReceiveByte((LPC_UART_TypeDef *)BL_UART));
 }
 
-void hal_serial_writestr(unsigned char *data)
+void uart_send_byte (char byte)
 {
-	char i = 0, r;
+	while (!(BL_UART->LSR & UART_LSR_THRE)) ;
+	UART_SendByte((LPC_UART_TypeDef *)BL_UART, byte);
+}
+
+void uart_writestr(unsigned char *data)
+{
+	int i = 0;
+	unsigned char r;
 
 	while ((r = data[i++]))
-		hal_uart_send(r);
+		uart_send_byte (r);
+}
+
+void uart_send_data(unsigned char *data, unsigned int count)
+{
+    while (count--)
+        uart_send_byte (*data++);
+}
+
+int uart_get_data(unsigned char *data, unsigned int count)
+{
+   while (count--) {
+       *data++ = uart_receive_wait ();
+   }
+   return 0;
 }

@@ -96,13 +96,13 @@ SRC =	$(ARCH_DIR)/CMSIS/src/system_LPC17xx.c \
 	$(ARCH_DIR)/source/lpc17xx_gpio.c \
 	$(ARCH_DIR)/source/lpc17xx_uart.c \
 	$(ARCH_DIR)/source/lpc17xx_clkpwr.c \
-	$(ARCH_DIR)/source/lpc17xx_ssp.c \
 	$(ARCH_DIR)/sbl_iap.c \
-	$(ARCH_DIR)/spi.c \
+	$(ARCH_DIR)/target.c \
 	$(ARCH_DIR)/uart.c \
 	$(ARCH_DIR)/ios.c \
-	main.c \
-	debug.c
+	../board/$(BOARD)/board.c \
+	protocol.c \
+	main.c
 
 # List C source files here which must be compiled in ARM-Mode (no -mthumb).
 # use file-extension c for "c-only"-files

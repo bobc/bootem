@@ -1,5 +1,5 @@
-/* Copyright (c) 2012 Bob Cousins bobcousins42@googlemail.com              */
 /* **************************************************************************
+   Copyright (c) 2012 Bob Cousins bobcousins42@googlemail.com              
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
@@ -78,28 +78,7 @@
 #define BOOT_BUTTON_PORT                2
 #define BOOT_BUTTON_PIN                 8
 
-#define SD_SSP                LPC_SSP1                   
-#define SD_SSEL_PORT          0
-#define SD_SSEL_PIN           6
 
-#define SD_SCLK_PORT          0
-#define SD_SCLK_PIN           7
-
-#define SD_MISO_PORT          0
-#define SD_MISO_PIN           8
-
-#define SD_MOSI_PORT          0
-#define SD_MOSI_PIN           9
-
-
-// SSP channel, func num
-
-// uart num, func num
-#define DBG_UART                LPC_UART0
-#define DBG_UART_NUM            0
-#define DBG_UART_PORT           0
-#define DBG_UART_TX_PIN         2
-#define DBG_UART_RX_PIN         3
 
 
 // --------------------------------------------------------------------------

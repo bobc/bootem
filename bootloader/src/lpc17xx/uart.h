@@ -30,12 +30,16 @@
 #ifndef	_UART_H
 #define	_UART_H
 
-void uart_init(void);
-char uart_data_available(void);
-char uart_receive(void);
-void uart_send(char byte);
-void serial_writestr(unsigned char *data);
+#include <stdbool.h>
 
-#define serial_writechar(x) hal_uart_send(x)
+void uart_init(void);
+
+bool uart_data_available(void);
+char uart_receive(void);
+int uart_get_data(unsigned char *data, unsigned int count);
+
+void uart_send_byte(char byte);
+void uart_send_data(unsigned char *data, unsigned int count);
+void uart_writestr(unsigned char *data);
 
 #endif	/* _UART_H */

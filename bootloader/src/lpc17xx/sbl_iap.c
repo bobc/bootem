@@ -11,136 +11,82 @@
 // use without further testing or modification.
 //-----------------------------------------------------------------------------
 
+#include "LPC17xx.h"
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_pinsel.h"
+
 #include "sbl_iap.h"
 #include "sbl_config.h"
-#include "lpc17xx_pinsel.h"
-#include "lpc17xx_gpio.h"
-#include "LPC17xx.h"
 
-#include "debug.h"
-//#include "lpcusb_type.h"
+//#include "config_pins.h"
 
-#include "config_pins.h"
 
 // If COMPUTE_BINARY_CHECKSUM is defined, then code will check that checksum
 // contained within binary image is valid.
 //#define COMPUTE_BINARY_CHECKSUM
 
-const unsigned sector_start_map[MAX_FLASH_SECTOR] = {SECTOR_0_START,             \
-SECTOR_1_START,SECTOR_2_START,SECTOR_3_START,SECTOR_4_START,SECTOR_5_START,      \
-SECTOR_6_START,SECTOR_7_START,SECTOR_8_START,SECTOR_9_START,SECTOR_10_START,     \
-SECTOR_11_START,SECTOR_12_START,SECTOR_13_START,SECTOR_14_START,SECTOR_15_START, \
-SECTOR_16_START,SECTOR_17_START,SECTOR_18_START,SECTOR_19_START,SECTOR_20_START, \
-SECTOR_21_START,SECTOR_22_START,SECTOR_23_START,SECTOR_24_START,SECTOR_25_START, \
-SECTOR_26_START,SECTOR_27_START,SECTOR_28_START,SECTOR_29_START};
+#define IAP_ADDRESS 0x1FFF1FF1
 
-const unsigned sector_end_map[MAX_FLASH_SECTOR] = {SECTOR_0_END,SECTOR_1_END,    \
-SECTOR_2_END,SECTOR_3_END,SECTOR_4_END,SECTOR_5_END,SECTOR_6_END,SECTOR_7_END,   \
-SECTOR_8_END,SECTOR_9_END,SECTOR_10_END,SECTOR_11_END,SECTOR_12_END,             \
-SECTOR_13_END,SECTOR_14_END,SECTOR_15_END,SECTOR_16_END,SECTOR_17_END,           \
-SECTOR_18_END,SECTOR_19_END,SECTOR_20_END,SECTOR_21_END,SECTOR_22_END,           \
-SECTOR_23_END,SECTOR_24_END,SECTOR_25_END,SECTOR_26_END,                         \
-SECTOR_27_END,SECTOR_28_END,SECTOR_29_END};
+typedef enum
+{
+	PREPARE_SECTOR_FOR_WRITE= 50,
+	COPY_RAM_TO_FLASH		= 51,
+	ERASE_SECTOR			= 52,
+	BLANK_CHECK_SECTOR		= 53,
+	READ_PART_ID			= 54,
+	READ_BOOT_VER			= 55,
+	COMPARE                 = 56,
+	REINVOKE_ISP			= 57,
+
+	READ_UID                = 58,
+	ERASE_PAGE              = 59,
+	EEPROM_WRITE            = 61,
+	EEPROM_READ             = 62
+} IAP_Command_Code;
+
+
+const unsigned sector_start_map[NUM_FLASH_SECTOR] = {
+	SECTOR_0_START, SECTOR_1_START, SECTOR_2_START, SECTOR_3_START, SECTOR_4_START,
+	SECTOR_5_START, SECTOR_6_START, SECTOR_7_START, SECTOR_8_START, SECTOR_9_START,
+	SECTOR_10_START,SECTOR_11_START,SECTOR_12_START,SECTOR_13_START,SECTOR_14_START,
+	SECTOR_15_START,SECTOR_16_START,SECTOR_17_START,SECTOR_18_START,SECTOR_19_START,
+	SECTOR_20_START,SECTOR_21_START,SECTOR_22_START,SECTOR_23_START,SECTOR_24_START,
+	SECTOR_25_START,SECTOR_26_START,SECTOR_27_START,SECTOR_28_START,SECTOR_29_START
+};
+
+const unsigned sector_end_map[NUM_FLASH_SECTOR] = {
+	SECTOR_0_END,SECTOR_1_END,SECTOR_2_END,SECTOR_3_END,SECTOR_4_END,
+	SECTOR_5_END,SECTOR_6_END,SECTOR_7_END,SECTOR_8_END,SECTOR_9_END,
+	SECTOR_10_END,SECTOR_11_END,SECTOR_12_END,SECTOR_13_END,SECTOR_14_END,
+	SECTOR_15_END,SECTOR_16_END,SECTOR_17_END,SECTOR_18_END,SECTOR_19_END,
+	SECTOR_20_END,SECTOR_21_END,SECTOR_22_END,SECTOR_23_END,SECTOR_24_END,
+	SECTOR_25_END,SECTOR_26_END,SECTOR_27_END,SECTOR_28_END,SECTOR_29_END
+};
+
+static char flash_buf[FLASH_BUF_SIZE];
+static unsigned byte_ctr = 0;
+static unsigned saved_address = 0;
 
 static unsigned param_table[5];
 static unsigned result_table[5];
 
-char flash_buf[FLASH_BUF_SIZE];
 
-static unsigned byte_ctr = 0;
+//static void iap_entry(unsigned param_tab[],unsigned result_tab[]);
+//static void compare_data(unsigned cclk, unsigned dst, void * flash_data_buf, unsigned count);
+//static void erase_sector(unsigned start_sector,unsigned end_sector,unsigned cclk);
+//static void find_erase_prepare_sector(unsigned cclk, unsigned dst);
+//static void prepare_sector(unsigned start_sector,unsigned end_sector,unsigned cclk);
+//static void write_data(unsigned cclk,unsigned dst,void * flash_data_buf, unsigned count);
 
-void write_data(unsigned cclk,unsigned dst,void * flash_data_buf, unsigned count);
-void find_erase_prepare_sector(unsigned cclk, unsigned dst);
-void erase_sector(unsigned start_sector,unsigned end_sector,unsigned cclk);
-void prepare_sector(unsigned start_sector,unsigned end_sector,unsigned cclk);
-void iap_entry(unsigned param_tab[],unsigned result_tab[]);
-void compare_data(unsigned cclk, unsigned dst, void * flash_data_buf, unsigned count);
-
-unsigned write_flash(unsigned * dst, char * src, unsigned no_of_bytes)
+static void iap_entry(unsigned param_tab[], unsigned result_tab[])
 {
-  unsigned i;
+  void (*iap)(unsigned [], unsigned []);
 
-  for(i = 0;i<no_of_bytes;i++)
-  {
-    flash_buf[(byte_ctr+i)] = *(src+i);
-  }
-  byte_ctr = byte_ctr + no_of_bytes;
-
-  if(byte_ctr == FLASH_BUF_SIZE)
-  {
-    /* We have accumulated enough bytes to trigger a flash write */
-    find_erase_prepare_sector(SystemCoreClock/1000, (unsigned)dst);
-    if(result_table[0] != CMD_SUCCESS)
-    {
-      DBG("Error: prepare sectors\n");
-      while(1); /* No way to recover. Just let OS report a write failure */
-    }
-    write_data( SystemCoreClock/1000,
-                (unsigned)dst,
-                (void *)flash_buf,
-                FLASH_BUF_SIZE);
-    if(result_table[0] != CMD_SUCCESS)
-    {
-      DBG("Error: writing data\n");
-      while(1); /* No way to recover. Just let OS report a write failure */
-    }
-
-    compare_data( SystemCoreClock/1000,
-                (unsigned)dst,
-                (void *)flash_buf,
-                FLASH_BUF_SIZE);
-    if(result_table[0] != CMD_SUCCESS)
-    {
-      DBG("Error: verifying data\n");
-      while(1); /* No way to recover. Just let OS report a write failure */
-    }
-
-    /* Reset byte counter and flash address */
-    byte_ctr = 0;
-    dst = 0;
-  }
-  return(CMD_SUCCESS);
+  iap = (void (*)(unsigned [], unsigned []))IAP_ADDRESS;
+  iap(param_tab,result_tab);
 }
 
-void find_erase_prepare_sector(unsigned cclk, unsigned dst)
-{
-  unsigned i;
-
-  __disable_irq();
-  for(i = USER_START_SECTOR; i <= MAX_USER_SECTOR; i++)
-  {
-    if(dst < sector_end_map[i])
-    {
-      if(dst == sector_start_map[i])
-      {
-        prepare_sector(i, i, cclk);
-        erase_sector(i, i, cclk);
-      }
-      prepare_sector(i , i, cclk);
-      break;
-    }
-  }
-  __enable_irq();
-}
-
-void write_data(unsigned cclk, unsigned dst, void * flash_data_buf, unsigned count)
-{
-  __disable_irq();
-  param_table[0] = COPY_RAM_TO_FLASH;
-  param_table[1] = dst;
-  param_table[2] = (unsigned)flash_data_buf;
-  param_table[3] = count;
-  param_table[4] = cclk;
-
-  // for debug, print the address and number of bytes
-  DBG("Writing address: %lx -- %d bytes", param_table[1], param_table[3]);
-  //DBG("Nr bytes: %d\n", param_table[3]);
-
-  iap_entry(param_table,result_table);
-  __enable_irq();
-}
-
-void compare_data(unsigned cclk, unsigned dst, void * flash_data_buf, unsigned count)
+static void iap_compare_data(unsigned cclk, uint32_t dst, void * flash_data_buf, uint32_t count)
 {
   __disable_irq();
   param_table[0] = COMPARE;
@@ -152,16 +98,17 @@ void compare_data(unsigned cclk, unsigned dst, void * flash_data_buf, unsigned c
   __enable_irq();
 }
 
-void erase_sector(unsigned start_sector, unsigned end_sector, unsigned cclk)
+void iap_erase_sectors(uint32_t start_sector, uint32_t end_sector)
 {
   param_table[0] = ERASE_SECTOR;
   param_table[1] = start_sector;
   param_table[2] = end_sector;
-  param_table[3] = cclk;
+  param_table[3] = SystemCoreClock/1000;
   iap_entry(param_table,result_table);
 }
 
-void prepare_sector(unsigned start_sector,unsigned end_sector,unsigned cclk)
+
+static void iap_prepare_sector(uint32_t start_sector,uint32_t end_sector,uint32_t cclk)
 {
   param_table[0] = PREPARE_SECTOR_FOR_WRITE;
   param_table[1] = start_sector;
@@ -170,50 +117,183 @@ void prepare_sector(unsigned start_sector,unsigned end_sector,unsigned cclk)
   iap_entry(param_table,result_table);
 }
 
-void iap_entry(unsigned param_tab[], unsigned result_tab[])
+static void iap_blank_check(uint32_t start_sector,uint32_t end_sector)
 {
-  void (*iap)(unsigned [], unsigned []);
-
-  iap = (void (*)(unsigned [], unsigned []))IAP_ADDRESS;
-  iap(param_tab,result_tab);
+  param_table[0] = BLANK_CHECK_SECTOR;
+  param_table[1] = start_sector;
+  param_table[2] = end_sector;
+  iap_entry(param_table, result_table);
 }
 
+static void iap_write_data(uint32_t cclk, uint32_t dst, void * flash_data_buf, uint32_t count)
+{
+  __disable_irq();
+  param_table[0] = COPY_RAM_TO_FLASH;
+  param_table[1] = dst;
+  param_table[2] = (unsigned)flash_data_buf;
+  param_table[3] = count;
+  param_table[4] = cclk;
+  iap_entry(param_table,result_table);
+  __enable_irq();
+}
+
+static void find_erase_prepare_sector(uint32_t cclk, uint32_t dst)
+{
+  unsigned i;
+
+  __disable_irq();
+  result_table[0] = IAP_CMD_SUCCESS;
+  for(i = USER_START_SECTOR; i <= USER_END_SECTOR; i++)
+  {
+    if(dst < sector_end_map[i])
+    {
+      if(dst == sector_start_map[i])
+      {
+        iap_prepare_sector(i, i, cclk);
+        iap_erase_sectors (i, i);
+      }
+      iap_prepare_sector(i , i, cclk);
+      __enable_irq();
+      return;
+    }
+  }
+  __enable_irq();
+}
+
+
+static uint32_t delay_loop(uint32_t count)
+{
+    volatile uint32_t j, del;
+    for(j=0; j<count; ++j) {
+        del=j; // volatiles, so the compiler will not optimize the loop
+    }
+    return del;
+}
+
+uint32_t iap_read_part_id (void)
+{
+    param_table[0] = READ_PART_ID;
+    iap_entry(param_table,result_table);
+    return result_table[1];
+}
+
+uint32_t iap_read_unique_id (void)
+{
+    param_table[0] = READ_UID;
+    iap_entry(param_table,result_table);
+    return result_table[1];
+}
+
+
+unsigned write_flash(uint32_t dest, char * src, uint32_t no_of_bytes)
+{
+  unsigned i;
+
+  if (byte_ctr==0)
+    saved_address = dest;
+
+  for(i = 0; i<no_of_bytes; i++)
+  {
+    flash_buf[byte_ctr++] = *(src+i);
+  }
+
+  // NB: this assumes that FLASH_BUF_SIZE is an integer multiple of no_of_bytes
+
+  if(byte_ctr == FLASH_BUF_SIZE)
+  {
+    /* We have accumulated enough bytes to trigger a flash write */
+
+    /* Reset byte counter */
+    byte_ctr = 0;
+
+    find_erase_prepare_sector(SystemCoreClock/1000, saved_address);
+    if(result_table[0] != IAP_CMD_SUCCESS)
+    {
+      // DBG("Error: prepare sectors\n");
+      return result_table[0];
+    }
+    iap_write_data( SystemCoreClock/1000, saved_address, (void *)flash_buf, FLASH_BUF_SIZE);
+    if(result_table[0] != IAP_CMD_SUCCESS)
+    {
+      // DBG("Error: writing data\n");
+      return result_table[0];
+    }
+
+    iap_compare_data( SystemCoreClock/1000, saved_address, (void *)flash_buf, FLASH_BUF_SIZE);
+    if(result_table[0] != IAP_CMD_SUCCESS)
+    {
+      // DBG("Error: verifying data\n");
+      return result_table[0];
+    }
+
+  }
+  return IAP_CMD_SUCCESS;
+}
+
+
+/* Jump to user application.
+ *
+ * this seems to fix an issue with handoff after poweroff
+ * found here http://knowledgebase.nxp.trimm.net/showthread.php?t=2869
+ *
+ * SP (stack pointer) register must be set correctly before jump to the
+ *  user application: http://www.keil.com/forum/17342/
+ *
+ * Set PC to the address contained in the second word
+ * of user flash
+ */
+
+static void jump_to_user_code (uint32_t base_addr)
+{
+	asm("LDR SP, [%0]" : : "r"(base_addr));
+	asm("LDR PC, [%0, #4]" : : "r"(base_addr));
+	// never returns
+}
 
 void execute_user_code(void)
 {
-  void (*user_code_entry)(void);
+  //void (*user_code_entry)(void);
+//  unsigned *p;  // used for loading address of reset handler from user flash
 
-  unsigned *p;  // used for loading address of reset handler from user flash
+  uint32_t addr=(uint32_t)USER_FLASH_START;
+  // delay
+  delay_loop(3000000);
 
   /* Change the Vector Table to the USER_FLASH_START
   in case the user application uses interrupts */
-  SCB->VTOR = (USER_FLASH_START & 0x1FFFFF80);
+  SCB->VTOR = addr & 0x1FFFFF80;
 
-  /* SP (stack pointer) register must be set correctly before jump to the
-   *  user application: http://www.keil.com/forum/17342/
-   */
-  __set_PSP(USER_FLASH_START);
+  //
+	// switch to RC generator
+	LPC_SC->PLL0CON = 0x1; // disconnect PLL0
+	LPC_SC->PLL0FEED = 0xAA;
+	LPC_SC->PLL0FEED = 0x55;
+	while (LPC_SC->PLL0STAT&(1<<25));
+	LPC_SC->PLL0CON = 0x0;    // power down
+	LPC_SC->PLL0FEED = 0xAA;
+	LPC_SC->PLL0FEED = 0x55;
+	while (LPC_SC->PLL0STAT&(1<<24));
+	LPC_SC->FLASHCFG &= 0x0fff;  // This is the default flash read/write setting for IRC
+	LPC_SC->FLASHCFG |= 0x5000;
+	LPC_SC->CCLKCFG = 0x0;     //  Select the IRC as clk
+	LPC_SC->CLKSRCSEL = 0x00;
+	LPC_SC->SCS = 0x00;		    // not using XTAL anymore
+	delay_loop(1000);
+	// reset pipeline, sync bus and memory access
+	__asm (
+		   "dmb\n"
+		   "dsb\n"
+		   "isb\n"
+		  );
 
-  // Load contents of second word of user flash - the reset handler address
-  // in the applications vector table
-  p = (unsigned *)(USER_FLASH_START +4);
-
-  // Set user_code_entry to be the address contained in that second word
-  // of user flash
-  user_code_entry = (void *) *p;
-
-  // Jump to user application
-  user_code_entry();
+  jump_to_user_code(addr);
 }
 
-int user_code_present(void)
+bool user_code_present(void)
 {
-  param_table[0] = BLANK_CHECK_SECTOR;
-  param_table[1] = USER_START_SECTOR;
-  param_table[2] = USER_START_SECTOR;
-  iap_entry(param_table,result_table);
-  if( result_table[0] == CMD_SUCCESS )
-    return (FALSE);
+  iap_blank_check (USER_START_SECTOR, USER_START_SECTOR);
+  if( result_table[0] == IAP_CMD_SUCCESS )
+    return false;
 
 #ifdef COMPUTE_BINARY_CHECKSUM
 	unsigned *pmem, checksum,i;
@@ -240,37 +320,22 @@ int user_code_present(void)
 #endif
 
   {
-    return (TRUE);
+    return true;
   }
 }
 
-void check_isp_entry_pin (void)
+
+void erase_sectors(uint32_t start, uint32_t end)
 {
-  /* Configure bootloader IO button P4.29 */
-  PINSEL_CFG_Type pin;
-  pin.Portnum = BOOT_BUTTON_PORT;
-  pin.Pinnum = BOOT_BUTTON_PIN;
-  pin.Funcnum = PINSEL_FUNC_0;
-  pin.Pinmode = PINSEL_PINMODE_PULLUP;
-  pin.OpenDrain = PINSEL_PINMODE_NORMAL;
-  PINSEL_ConfigPin(&pin);
-
-  /* set as input */
-  GPIO_SetDir(BOOT_BUTTON_PORT, (1<<BOOT_BUTTON_PIN), 0);
-
-  /* Verify if bootloader pin is activated */
-  if(GPIO_ReadValue(BOOT_BUTTON_PORT) & (1<<BOOT_BUTTON_PIN))
-  {
-    execute_user_code();
-  }
+  iap_prepare_sector(start, end, SystemCoreClock/1000);
+  iap_erase_sectors (start, end);
 }
 
-void erase_user_flash(void)
+int erase_user_flash(void)
 {
-  prepare_sector(USER_START_SECTOR,MAX_USER_SECTOR,SystemCoreClock/1000);
-  erase_sector(USER_START_SECTOR,MAX_USER_SECTOR,SystemCoreClock/1000);
-  if(result_table[0] != CMD_SUCCESS)
-  {
-    while(1); /* No way to recover. Just let OS report a write failure */
-  }
+  iap_prepare_sector(USER_START_SECTOR, USER_END_SECTOR, SystemCoreClock/1000);
+  iap_erase_sectors (USER_START_SECTOR, USER_END_SECTOR);
+
+  return result_table[0];
 }
+

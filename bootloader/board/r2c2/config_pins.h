@@ -1,5 +1,5 @@
-/* Copyright (c) 2012 Bob Cousins bobcousins42@googlemail.com              */
 /* **************************************************************************
+   Copyright (c) 2012 Bob Cousins bobcousins42@googlemail.com              
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or without

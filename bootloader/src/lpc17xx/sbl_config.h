@@ -42,24 +42,10 @@
 */
 
 /*
- * CodeRed - changed start sector from bank 2 to bank 16 - ie 64k into flash.
+ * Start at 16 kB
  */
-#define USER_START_SECTOR 16
-#define MAX_USER_SECTOR 29
-
-/*
-// <h> Update Entry Pin
-//   <o0> Port
-//        <0x2009C014=> Port 0 <0x2009C034=> Port 1 <0x2009C054=> Port 2 <0x2009C074=> Port 3 <0x2009C094=> Port 4
-//   <o1> Pin <0-31>
-// </h>
-*/
-
-/*
- * SW2 button wired on is P0.0
- */
-#define ISP_ENTRY_GPIO_REG 0x2009C054  /* Port */
-#define ISP_ENTRY_PIN 	   10        /* Pin  */
+#define USER_START_SECTOR 4
+#define USER_END_SECTOR   29
 
 /*
  * CodeRed - change FLASH_BUF_SIZE from 256 to 512 to match buffer
@@ -67,9 +53,11 @@
  */
 #define FLASH_BUF_SIZE 512
 #define USER_FLASH_START (sector_start_map[USER_START_SECTOR])
-#define USER_FLASH_END	 (sector_end_map[MAX_USER_SECTOR])
+#define USER_FLASH_END	 (sector_end_map  [USER_END_SECTOR])
 #define USER_FLASH_SIZE  ((USER_FLASH_END - USER_FLASH_START) + 1)
-#define MAX_FLASH_SECTOR 30
+
+
+#define NUM_FLASH_SECTOR 30
 
 /* Define start address of each Flash sector */
 #define SECTOR_0_START      0x00000000
@@ -136,6 +124,10 @@
 #define SECTOR_27_END       0x0006FFFF
 #define SECTOR_28_END       0x00077FFF
 #define SECTOR_29_END       0x0007FFFF
+
+
+extern const unsigned sector_start_map[];
+extern const unsigned sector_end_map[];
 
                           
 #endif  /* __SBL_CONFIG_H__ */
