@@ -34,8 +34,7 @@
 
 # Toolchain prefix (arm-elf- -> arm-elf-gcc.exe)
 TCHAIN_PREFIX = arm-none-eabi-
-#TCHAIN_PREFIX = arm-eabi-
-#TCHAIN_PREFIX = arm-elf-
+
 # cs-rm is a standard GNU rm which gets installed with CS G++ lite.
 # Just the filename is different. Use REMOVE_CMD=rm in environments
 # with rm (Linux, BSD, msys, Cygwin etc.)
@@ -47,17 +46,9 @@ REMOVE_CMD=rm
 USE_THUMB_MODE = YES
 #USE_THUMB_MODE = NO
 
-# MCU name, submodel and board
-# - MCU used for compiler-option (-mcpu)
-# - SUBMDL used for linker-script name (-T) and passed as define
-# - BOARD just passed as define (don't used '-' characters)
+# BOARD 
 #BOARD    = r2c2
-#MCU      = cortex-m3
-#CHIP     = LPC1758
-
 BOARD    = smoothieboard
-MCU      = cortex-m3
-CHIP     = LPC1769
 
 # *** This example only supports "FLASH_RUN" ***
 # Create FLASH-Image
@@ -76,37 +67,17 @@ OUTDIR = FLASH_$(BOARD)
 TARGET = bootloader
 
 # Utility variables
-#APPLIBDIR   = ../Firmware/libraries
-ARCH_DIR    = lpc17xx
 
-#BOOT_ARCH_DIR = lpc17xx
-#BOOT_USB_DIR = arch/lpc17xx/LPCUSB
+BOARD_DIR=../board/$(BOARD)
 
-INCLUDES = $(ARCH_DIR)/CMSIS/inc \
-	 $(ARCH_DIR)\
-	 $(ARCH_DIR)/include \
-	 ../board/$(BOARD)
+INCLUDES = ../src ../board/$(BOARD)
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
-SRC =	$(ARCH_DIR)/CMSIS/src/system_LPC17xx.c \
-	$(ARCH_DIR)/CMSIS/src/core_cm3.c \
-	$(ARCH_DIR)/source/lpc17xx_nvic.c \
-	$(ARCH_DIR)/source/lpc17xx_pinsel.c \
-	$(ARCH_DIR)/source/lpc17xx_gpio.c \
-	$(ARCH_DIR)/source/lpc17xx_uart.c \
-	$(ARCH_DIR)/source/lpc17xx_clkpwr.c \
-	$(ARCH_DIR)/sbl_iap.c \
-	$(ARCH_DIR)/target.c \
-	$(ARCH_DIR)/uart.c \
-	$(ARCH_DIR)/ios.c \
-	../board/$(BOARD)/board.c \
-	protocol.c \
-	main.c
+SRC = boot_api.c protocol.c main.c
 
 # List C source files here which must be compiled in ARM-Mode (no -mthumb).
 # use file-extension c for "c-only"-files
-## just for testing, timer.c classcould be compiled in thumb-mode too
 SRCARM =
 
 # List C++ source files here.
@@ -125,17 +96,13 @@ CPPSRCARM =
 # Even though the DOS/Win* filesystem matches both .s and .S the same,
 # it will preserve the spelling of the filenames, and gcc itself does
 # care about how the name is spelled on its command-line.
-ASRC = $(ARCH_DIR)/startup_LPC17xx.S
+ASRC = 
 
 # List Assembler source files here which must be assembled in ARM-Mode.
 ASRCARM  =
 
 # Place project-specific -D (define) and/or -U options for C here.
 CDEFS =
-CDEFS += -DUARTDEBUG
-# enables parameter-checking in NXP's library
-#CDEFS += -DDEBUG
-#CDEFS += -DWITH_USB_MS=1
 
 # Place project-specific -D and/or -U options for
 # Assembler with preprocessor here.
@@ -169,6 +136,14 @@ LINKERSCRIPTINC  = .
 #     Each directory must be seperated by a space.
 EXTRA_LIBDIRS =
 
+#
+
+include $(BOARD_DIR)/board.mk
+
+include $(ARCH_DIR)/platform.mk
+
+#
+
 # Optimization level, can be [0, 1, 2, 3, s].
 # 0 = Turn off optimization. Reduce compilation time and make debugging
 #     produce the expected results.
@@ -182,10 +157,7 @@ EXTRA_LIBDIRS =
 #     size.
 # (See gcc manual for further information)
 #OPT = 0
-#OPT = 1
-#OPT = 2
-#OPT = 3
-OPT = 0
+OPT = s
 
 # Debugging format.
 #DEBUG = stabs
