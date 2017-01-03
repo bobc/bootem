@@ -152,6 +152,7 @@ SECTIONS
     . = ALIGN (8);
     _edata = .;
   } >ram AT>rom
+  
   .bss(NOLOAD) :
   {
     _sbss = .;
@@ -164,13 +165,22 @@ SECTIONS
     _end = .;
     __end = .;
   } >ram AT>rom
+  
   .heap :
   {
     *(.heap)
   } >ram
+  
   .stack (__cs3_stack - __cs3_stack_size) :
   {
     *(.stack)
+  } >ram
+  
+  __bca_start = ORIGIN(ram) + LENGTH(ram) - 64;  
+  .boot_communication_area __bca_start (NOLOAD):
+  {
+    *(.boot_communication_area)
+    __boot_communication_area_size = . - __bca_start;
   } >ram
   
   .ahb_bank0(NOLOAD) :
@@ -182,7 +192,7 @@ SECTIONS
   __cs3_region_init_ram = LOADADDR (.data);
   __cs3_region_init_size_ram = _edata - __cs3_region_start_ram;
   __cs3_region_zero_size_ram = _end - _edata;
-  __cs3_region_size_ram = LENGTH(ram);
+  __cs3_region_size_ram = LENGTH(ram) - 64;
   __cs3_region_num = 1;
 
   .stab 0 (NOLOAD) : { *(.stab) }

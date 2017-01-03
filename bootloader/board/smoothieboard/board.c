@@ -16,7 +16,7 @@
  */
 
 // **************************************************************************
-// Description:
+// Description: For Smoothieboard
 //
 // **************************************************************************
 
@@ -24,21 +24,14 @@
 // Includes
 // --------------------------------------------------------------------------
 
-// CMSIS
-#include "LPC17xx.h"
-#include "core_cm3.h"
+#include "bootloader.h"
 
-// NXP
-#include "lpc17xx_nvic.h"
+// Platform - NXP
 #include "lpc17xx_pinsel.h"
 #include "lpc17xx_gpio.h"
-
-// Local
-#include "sbl_iap.h"
-#include "sbl_config.h"
-#include "uart.h"
 #include "ios.h"
 
+// Board specific
 #include "board.h"
 #include "config_pins.h"
 
@@ -170,7 +163,7 @@ void board_init(void)
 }
 
 
-bool bl_button_pressed(void)
+bool board_button_pressed(void)
 {
     /* Test if bootloader pin is activated */
 	/* NB this assumes active low input */
@@ -178,6 +171,16 @@ bool bl_button_pressed(void)
         return false;
     else
     	return true;
+}
+
+void board_notify (tBootloaderNotification event)
+{
+  switch (event)
+  {
+    case bn_protocol_idle:
+      // flash led
+      break;
+  }
 }
 
 // --------------------------------------------------------------------------

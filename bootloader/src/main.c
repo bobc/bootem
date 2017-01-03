@@ -34,7 +34,8 @@
 #include "board.h"
 #include "protocol.h"
 
-
+#include "boot_api.h"
+#include "bootloader.h"
 
 int main() 
 {
@@ -43,26 +44,36 @@ int main()
     board_init ();
 
     // **** test
-    run_protocol();
+    //run_protocol();
     // ****
 
-    if (bl_button_pressed())
+    if (board_button_pressed() || bca_download_request())
     {
+      board_notify (bn_bootloader_requested);
+
         // enter bootloader
+      board_notify (bn_protocol_idle);
         run_protocol();
-        // hw_reboot();
+      // hw_reboot(); //?
     }
     else 
     {
         if (user_code_present()) 
         {
+          // user code valid
+          board_notify (bn_user_code_valid);
+
             // starting user code...
+          board_notify (bn_jumping_to_user_code);
             execute_user_code();
         }
         else 
         {
             // user code invalid
-            while (1);
+          board_notify (bn_user_code_invalid);
+          // enter bootloader
+          board_notify (bn_protocol_idle);
+          run_protocol();
         }
     }        
 }

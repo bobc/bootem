@@ -1,8 +1,6 @@
-/*
-  Contributors:
-  Copyright (c) 2014 Bob Cousins bobcousins42@googlemail.com
-*/
 /* **************************************************************************
+  Copyright (c) 2017 Bob Cousins bobcousins42@googlemail.com
+
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +16,7 @@
 ****************************************************************************/
 
 // **************************************************************************
-// Description:
+// Description: definitions for Smoothieboard
 //
 // **************************************************************************
 
@@ -30,6 +28,8 @@
 // --------------------------------------------------------------------------
 
 #include <stdbool.h>
+
+#include "bootloader.h"
 
 // --------------------------------------------------------------------------
 // Defines
@@ -51,6 +51,7 @@
 // Types
 // --------------------------------------------------------------------------
 
+
 // --------------------------------------------------------------------------
 // Public Variables
 // --------------------------------------------------------------------------
@@ -61,7 +62,9 @@
 
 void board_init(void);
 
-bool bl_button_pressed(void);
+bool board_button_pressed(void);
+
+void board_notify (tBootloaderNotification event);
 
 // --------------------------------------------------------------------------
 //
