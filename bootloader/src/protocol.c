@@ -195,7 +195,7 @@ void bl_get_id(void)
   else
     buf[0]--;
 
-  uart_send_data(buf, buf[0]+1);
+  uart_send_data(buf, buf[0]+2);
 
   uart_send_byte(RES_ACK);
 }
