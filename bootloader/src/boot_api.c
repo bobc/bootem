@@ -92,6 +92,7 @@ bool bca_download_request (void)
     if (boot_communication_area.ByField.Request[0] == BOOT_REQ_ENTER_BOOTLOADER)
       return true;
   }
+  return false;
 }
 
 void initialise_bca (void)
@@ -110,6 +111,12 @@ void initialise_bca (void)
 void bca_set_request (uint32_t boot_req)
 {
   boot_communication_area.ByField.Request[0] = boot_req;
+  boot_communication_area.ByField.Checksum = bca_calc_sum(&boot_communication_area) ^ 0xFFFFFFFF;
+}
+
+void bca_set_response (uint32_t boot_response)
+{
+  boot_communication_area.ByField.Result[0] = boot_response;
   boot_communication_area.ByField.Checksum = bca_calc_sum(&boot_communication_area) ^ 0xFFFFFFFF;
 }
 

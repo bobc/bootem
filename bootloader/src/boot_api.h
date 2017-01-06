@@ -46,8 +46,9 @@
 #define BOOT_REQ_NOP                0
 #define BOOT_REQ_ENTER_BOOTLOADER   1
 
-#define BOOT_RES_NORMAL_BOOT        0
-#define BOOT_RES_FIRMWARE_UPLOADED  1
+#define BOOT_RES_NONE               0
+#define BOOT_RES_NORMAL_BOOT        1
+#define BOOT_RES_FIRMWARE_UPLOADED  2
 
 typedef union {
 
@@ -79,6 +80,8 @@ bool bca_download_request (void);
 
 void initialise_bca (void);
 void bca_set_request (uint32_t boot_req);
+void bca_set_response (uint32_t boot_response);
+
 
 // --------------------------------------------------------------------------
 // End
