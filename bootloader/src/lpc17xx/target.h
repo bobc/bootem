@@ -50,7 +50,7 @@
 
 void hw_init (void);
 void hw_reboot (void);
-void hw_read_part_id (uint8_t *buf);
+int hw_read_part_id (uint8_t *buf);
 
 // --------------------------------------------------------------------------
 //

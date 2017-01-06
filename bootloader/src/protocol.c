@@ -37,25 +37,32 @@
 // --------------------------------------------------------------------------
 // Local defines
 // --------------------------------------------------------------------------
-#define RECV_BUFFER_SIZE    512
+#define COMM_BUFFER_SIZE    (512+8)
 
-#define CMD_GET_INFO        0x00
-#define CMD_GET_VERSION     0x01
-#define CMD_GET_ID          0x02
-#define CMD_READ_FLASH      0x11
-#define CMD_GO              0x21
-#define CMD_WRITE_FLASH     0x31
-#define CMD_ERASE_FLASH     0x43
+#define CMD_GET_COMMANDS    0x01
+#define CMD_GET_VERSION     0x02
+#define CMD_GET_ID          0x03
 
-#define RES_NAK             0x1F
-#define RES_ACK             0x79
+#define CMD_READ_MEMORY     0x10
+#define CMD_WRITE_FLASH     0x20
+#define CMD_ERASE_FLASH     0x30
 
-#define SYNC_START          0x7F
+#define CMD_ENTER_PROG_MODE 0x40
+#define CMD_EXIT_PROG_MODE  0x41
+#define CMD_GO              0x42
 
-#define INFO_VERSION_MAJOR  0x0
-#define INFO_VERSION_MINOR  0x1
+#define PROTO_VERSION_MAJOR  1
+#define PROTO_VERSION_MINOR  0
 
-#define INFO_VERSION        ((INFO_VERSION_MAJOR << 4) | INFO_VERSION_MINOR)
+#define BOOTLOADER_VERSION_MAJOR  0
+#define BOOTLOADER_VERSION_MINOR  2
+
+#define FLAG    0x7E
+#define ESCAPE  0x7D
+
+#define RES_INVALID_COMMAND         0x80
+#define RES_INVALID_REQUEST         0x81
+#define RES_INVALID_MODE            0x82
 
 // --------------------------------------------------------------------------
 // Types
@@ -73,9 +80,14 @@
 // Private Variables
 // --------------------------------------------------------------------------
 
-static uint8_t buf[RECV_BUFFER_SIZE];
+static uint8_t buf[COMM_BUFFER_SIZE];
+static int rx_count;
 
 static uint32_t addr;
+
+static bool  programming_mode = false;
+
+static const uint8_t signature [] = {'B','O','B','P'};
 
 // --------------------------------------------------------------------------
 // Function prototypes
@@ -95,119 +107,178 @@ static uint32_t addr;
  *  @return
  */
 
-
-static bool get_address(void)
+void copy_bytes (uint8_t *dest, uint8_t *src, int count )
 {
-  unsigned char crc;
-
-  if (uart_get_data(buf, 5) == 0)
-  {
-    crc = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-    if (crc == buf[4])
-    {
-      addr = buf[3] | (buf[2] << 8) | (buf[1] << 16) | (buf[0] << 24);
-      uart_send_byte(RES_ACK);
-      return true;
-    }
-    else
-    {
-      uart_send_byte(RES_NAK);
-      return false;
-    }
-  }
-  else
-    return false;
+  while (count--)
+    *dest++ = *src++;
 }
 
-void bl_wait_for_sync(void)
+// calculate Fletcher16 checksum, result == 0 if valid.
+uint16_t Fletcher16(uint8_t *data, int count)
 {
-  uint8_t b;
+   uint16_t sum1 = 0;
+   uint16_t sum2 = 0;
 
-  while (1)
+   while (count--)
+   {
+      sum1 = (sum1 + *data++) % 255;
+      sum2 = (sum2 + sum1) % 255;
+   }
+
+   return (sum2 << 8) | sum1;
+}
+
+void append_checksum (uint8_t *data, int count)
+{
+  uint16_t csum;
+  uint8_t c0,c1,f0,f1;
+
+  csum = Fletcher16 (data, count);
+  f0 = csum & 0xff;
+  f1 = (csum >> 8) & 0xff;
+  c0 = 0xff - (( f0 + f1) % 0xff);
+  c1 = 0xff - (( f0 + c0 ) % 0xff);
+
+  data[count] = c0;
+  data[count+1] = c1;
+}
+
+static void bl_send_frame (uint8_t *data, int count)
+{
+  if (count > COMM_BUFFER_SIZE-2)
+    return;
+
+  append_checksum (data, count);
+  count += 2;
+
+  uart_send_byte (FLAG);
+  while (count--)
   {
-    if (uart_get_data(&b, 1) == 0)
-      if (b == SYNC_START)
-      {
-        uart_send_byte(RES_ACK);
-        return;
-      }
+    if ( (*data == FLAG) || (*data == ESCAPE) )
+    {
+      uart_send_byte (ESCAPE);
+      uart_send_byte ((*data) ^ 0x20);
+    }
+    else
+      uart_send_byte (*data);
+    data++;
   }
+  uart_send_byte (FLAG);
+}
+
+static bool get_address(int offset)
+{
+  //todo: if (offset +3 < rx_count
+
+  addr = buf[offset+3] | (buf[offset+2] << 8) | (buf[offset+1] << 16) | (buf[offset] << 24);
+  return true;
+}
+
+// get a word value (MSB)
+static int get_word (int offset)
+{
+  //todo: if (offset +1 < rx_count
+  return buf[offset+1] | (buf[offset] << 8);
 }
 
 int bl_get_cmd(void)
 {
-  if (uart_get_data(buf, 2) == 0)
+  bool end_frame = false;
+  int count=0;
+  uint8_t b;
+
+  do {
+    uart_get_data(&b, 1);
+  } while (b == FLAG);
+
+  buf[count++] = b;
+
+  while (!end_frame)
   {
-    if (buf[0] != (buf[1] ^ 0xFF))
+    if (uart_get_data(&b, 1) == 0)
     {
-      uart_send_byte(RES_NAK);
-      return -2;
-    }
-    else
-    {
-      // ACK will be sent later if command is supported
-      return 0;
+      if (b == FLAG)
+      {
+        end_frame = true;
+      }
+      else
+      {
+        if (b == ESCAPE)
+        {
+          uart_get_data(&b, 1);
+          b = b ^ 0x20;
+        }
+        if (count < COMM_BUFFER_SIZE)
+          buf[count++] = b;
+      }
     }
   }
-  return -1;
+
+  if ( (count>=3) && (Fletcher16 (buf, count) == 0) )
+  {
+    rx_count = count-2;
+    return 0;
+  }
+  else
+  {
+    rx_count = 0;
+    return -1;
+  }
 }
 
-static uint8_t info_buf [] = {
-    0,
-    INFO_VERSION,
-    CMD_GET_INFO,
+static uint8_t info_commands [] = {
+    CMD_GET_COMMANDS,
     CMD_GET_VERSION,
     CMD_GET_ID,
     CMD_GO,
-    CMD_READ_FLASH,
+    CMD_READ_MEMORY,
     CMD_WRITE_FLASH,
-    CMD_ERASE_FLASH,
-    RES_ACK
+    CMD_ERASE_FLASH
 };
 
 void bl_get_info(void)
 {
-  uart_send_byte(RES_ACK);
-  info_buf[0] = sizeof(info_buf)-3;
-  uart_send_data (info_buf, sizeof(info_buf));
-}
+  buf[0] = CMD_GET_COMMANDS;
+  copy_bytes (&buf[1], info_commands, sizeof(info_commands));
 
-static uint8_t buf_version [] = {
-    INFO_VERSION,
-    0, 0,
-    RES_ACK
-};
+  bl_send_frame (buf, sizeof(info_commands)+1);
+}
 
 void bl_get_version(void)
 {
-  uart_send_byte(RES_ACK);
-  uart_send_data(buf_version, sizeof(buf_version));
+  buf[0] = CMD_GET_VERSION;
+  copy_bytes (&buf[1], signature, 4);
+  buf[5] = PROTO_VERSION_MAJOR;
+  buf[6] = PROTO_VERSION_MINOR;
+  buf[7] = BOOTLOADER_VERSION_MAJOR;
+  buf[8] = BOOTLOADER_VERSION_MINOR;
+
+  bl_send_frame (buf, 9);
+}
+
+void bl_send_error (uint8_t response_code)
+{
+  buf[0] = response_code;
+
+  bl_send_frame (buf, 1);
 }
 
 void bl_get_id(void)
 {
-  uart_send_byte(RES_ACK);
+  int count=0;
 
-  hw_read_part_id (buf);
+  buf[0] = CMD_GET_ID;
+  count = hw_read_part_id (&buf[1]);
+  count++;
 
-  if (buf[0]==0)
-    buf[1] = 0;
-  else
-    buf[0]--;
-
-  uart_send_data(buf, buf[0]+2);
-
-  uart_send_byte(RES_ACK);
+  bl_send_frame (buf, count);
 }
 
 void bl_go(void)
 {
-  uart_send_byte(RES_ACK);
+  bl_send_frame(buf, 1);
 
-  if (get_address())
-  {
-    execute_user_code ();
-  }
+  execute_user_code ();
 }
 
 
@@ -217,135 +288,67 @@ void bl_write_flash()
   unsigned int len;
   unsigned char crc;
 
-  uart_send_byte(RES_ACK);
-
   // get address
-  if (get_address())
+  if (get_address(1))
   {
-    // get data len
-    if (uart_get_data(buf, 1) == 0)
+    len = rx_count - 5;
+    if (len > 0)
     {
-      len = buf[0] + 1;
-      crc = buf[0];
-
-      // get data and crc
-      if (uart_get_data(buf, len + 1) == 0)
+      //write flash
+      if (addr < (USER_FLASH_END - USER_FLASH_START + 1))
       {
-        for (i = 0; i < len + 1; i++)
-        {
-          crc = crc ^ buf[i];
-        }
-
-        if (crc == 0)
-        {
-          //write flash
-          if (addr < (USER_FLASH_END - USER_FLASH_START + 1))
-          {
-            write_flash(USER_FLASH_START + addr, buf, len);
-          }
-          uart_send_byte(RES_ACK);
-        }
-        else
-        {
-          uart_send_byte(RES_NAK);
-        }
+        write_flash(USER_FLASH_START + addr, &buf[5], len);
       }
+
+      buf[0] = CMD_WRITE_FLASH;
+      bl_send_frame(buf, 1);
+      return;
     }
   }
+
+  buf[0] = RES_INVALID_REQUEST;
+  bl_send_frame(buf, 1);
 }
 
 void bl_read_flash()
 {
-  int i;
-  unsigned int len = 0;
-
-  uart_send_byte(RES_ACK);
+  int j;
+  int len = 0;
 
   // get address
-  if (get_address())
+  if (get_address(1))
   {
-    // get data len and crc
-    if (uart_get_data(buf, 2) == 0)
-    {
-      if ((buf[0] ^ 0xFF) == buf[1])
-      {
-        len = buf[0] + 1;
-        uart_send_byte(RES_ACK);
-      }
-      else
-      {
-        uart_send_byte(RES_NAK);
-        return;
-      }
-    }
+    // get data len
+    len = get_word (5);
+
+    //todo: check len
+
     // send data
-    for (i = 0; i < len; i++)
+    for (j = 0; j < len; j++)
     {
-      buf[i] = *(unsigned char *) (addr++);
+      buf[j+1] = *(unsigned char *) (addr++);
     }
-    uart_send_data(buf, len);
+
+    bl_send_frame(buf, 1+len);
+    return;
   }
+
+  buf[0] = RES_INVALID_REQUEST;
+  bl_send_frame(buf, 1);
 }
 
 void bl_erase_flash()
 {
-  int i;
-  unsigned int len;
-  unsigned char crc;
   int res;
 
-  uart_send_byte(RES_ACK);
+  res = erase_user_flash();
 
-  // get len
-  if (uart_get_data(buf, 1) == 0)
-  {
-    len = (buf[0] + 1) & 0xFF; // maximum sector number is 256
-
-    crc = buf[0];
-    // get sector sequence and crc
-    if (uart_get_data(buf, len + 1) == 0)
-    {
-      for (i = 0; i < len + 1; i++)
-      {
-        crc = crc ^ buf[i];
-      }
-
-      // erase flash sectors
-      if (len == 0)
-      {
-        if (buf[0] == 0)
-        {
-          res = erase_user_flash();
-          uart_send_byte(RES_ACK);
-        }
-        else
-          uart_send_byte(RES_NAK);
-      }
-      else
-      {
-        if (crc == 0)
-        {
-          for (i = 0; i < len; i++)
-          {
-            if ((sector_start_map[buf[i]] >= USER_FLASH_START) && (sector_end_map[buf[i]] < USER_FLASH_END))
-            {
-              erase_sectors(buf[i], buf[i]);
-            }
-          }
-          uart_send_byte(RES_ACK);
-        }
-        else
-        {
-          uart_send_byte(RES_NAK);
-        }
-      }
-    }
-  }
+  bl_send_frame(buf, 1);
 }
 
 int run_protocol(void)
 {
-  bl_wait_for_sync();
+//  bl_wait_for_sync();
 
   while (1)
   {
@@ -353,7 +356,7 @@ int run_protocol(void)
     {
       switch (buf[0])
       {
-      case CMD_GET_INFO:
+      case CMD_GET_COMMANDS:
         bl_get_info();
         break;
       case CMD_GET_VERSION:
@@ -362,20 +365,20 @@ int run_protocol(void)
       case CMD_GET_ID:
         bl_get_id();
         break;
-      case CMD_GO:
-        bl_go();
+      case CMD_READ_MEMORY:
+        bl_read_flash();
         break;
       case CMD_WRITE_FLASH:
         bl_write_flash();
         break;
-      case CMD_READ_FLASH:
-        bl_read_flash();
-        break;
       case CMD_ERASE_FLASH:
         bl_erase_flash();
         break;
+      case CMD_GO:
+        bl_go();
+        break;
       default:
-        uart_send_byte(RES_NAK);
+        bl_send_error(RES_INVALID_COMMAND);
         break;
       }
     }

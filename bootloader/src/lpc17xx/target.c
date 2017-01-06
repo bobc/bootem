@@ -106,16 +106,16 @@ void hw_reboot (void)
 }
 
 
-void hw_read_part_id (uint8_t *buf)
+int hw_read_part_id (uint8_t *buf)
 {
   uint32_t part_id = iap_read_part_id();
 
-  buf[0] = 4;
-  buf[1] = part_id >> 24;
-  buf[2] = part_id >> 16 & 0xff;
-  buf[3] = part_id >> 8 & 0xff;
-  buf[4] = part_id & 0xff;
+  buf[0] = part_id >> 24;
+  buf[1] = part_id >> 16 & 0xff;
+  buf[2] = part_id >> 8 & 0xff;
+  buf[3] = part_id & 0xff;
 
+  return 4;
 }
 
 // --------------------------------------------------------------------------

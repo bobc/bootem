@@ -50,11 +50,6 @@ int main()
     if (board_button_pressed() || bca_download_request())
     {
       board_notify (bn_bootloader_requested);
-
-        // enter bootloader
-      board_notify (bn_protocol_idle);
-        run_protocol();
-      // hw_reboot(); //?
     }
     else 
     {
@@ -65,15 +60,29 @@ int main()
 
             // starting user code...
           board_notify (bn_jumping_to_user_code);
+          initialise_bca();
+          bca_set_response (BOOT_RES_NORMAL_BOOT);
             execute_user_code();
         }
         else 
         {
             // user code invalid
           board_notify (bn_user_code_invalid);
-          // enter bootloader
-          board_notify (bn_protocol_idle);
-          run_protocol();
         }
+    }
+
+          // enter bootloader
+    initialise_bca();
+          board_notify (bn_protocol_idle);
+    if (run_protocol())
+    {
+      board_notify (bn_jumping_to_user_code);
+      bca_set_response (BOOT_RES_FIRMWARE_UPLOADED);
+      execute_user_code();
+        }
+    else
+    {
+      // what to do here?
+      hw_reboot();
     }        
 }
