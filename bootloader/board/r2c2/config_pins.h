@@ -27,10 +27,9 @@
   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
   POSSIBILITY OF SUCH DAMAGE.
 ****************************************************************************/
+
 // **************************************************************************
-//
 // Description: For R2C2 board
-//
 // **************************************************************************
 
 #ifndef _CONFIG_PINS_H
@@ -78,39 +77,7 @@
 #define BOOT_BUTTON_PORT    4
 #define BOOT_BUTTON_PIN     29
 
-#define SD_SSP                LPC_SSP0
-#define SD_SCLK_PORT          0
-#define SD_SCLK_PIN           15
 
-#define SD_MISO_PORT          0
-#define SD_MISO_PIN           17
-
-#define SD_MOSI_PORT          0
-#define SD_MOSI_PIN           18
-
-#define SD_SSEL_PORT          0
-#define SD_SSEL_PIN           16
-
-// SSP channel, func num
-
-// uart num, func num
-#define USE_UART0 
-
-#ifdef USE_UART0
-// UART 0 :  0.2 and 0.3
-#define DBG_UART                LPC_UART0
-#define DBG_UART_NUM            0
-#define DBG_UART_PORT           0
-#define DBG_UART_TX_PIN         2
-#define DBG_UART_RX_PIN         3
-#else 
-// UART 3
-#define DBG_UART                LPC_UART3
-#define DBG_UART_NUM            3
-#define DBG_UART_PORT           4
-#define DBG_UART_TX_PIN         28
-#define DBG_UART_RX_PIN         29
-#endif
 
 // --------------------------------------------------------------------------
 // Types

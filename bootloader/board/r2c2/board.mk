@@ -5,11 +5,11 @@
 
 ARCH_DIR = ../cores/lpc17xx/core
 MCU      = cortex-m3
-CHIP     = LPC1769
+CHIP     = LPC1758
 
 
 SRC += $(BOARD_DIR)/board.c
 
 
 #BOARD_FLAGS = -D __SAM3X8E__ -D NDEBUG
-BOARD_INC   = .
+#BOARD_INC   = .
