@@ -48,7 +48,10 @@ USE_THUMB_MODE = YES
 
 # BOARD 
 #BOARD    = r2c2
-BOARD    = smoothieboard
+#BOARD    ?= smoothieboard
+#BOARD    = freedom_k64f
+
+BOARD    = olimexino_stm32
 
 # *** This example only supports "FLASH_RUN" ***
 # Create FLASH-Image
@@ -70,7 +73,7 @@ TARGET = bootloader
 
 BOARD_DIR=../board/$(BOARD)
 
-INCLUDES = ../src ../board/$(BOARD)
+INCLUDES = ../src ../cores $(BOARD_DIR)
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
@@ -126,7 +129,7 @@ EXTRA_LIBS =
 BUILDONCHANGE = Makefile
 
 # Path to linker-scripts (see -T option)
-LINKERSCRIPTPATH = $(ARCH_DIR)
+LINKERSCRIPTPATH = $(ARCH_DIR)/../variants/$(BOARD)
 
 # List any directories with files included from linker-scripts.
 #    Each directory must be seperated by a space.
@@ -256,7 +259,8 @@ ADEFS += -D$(RUN_MODE) -D$(CHIP) -D$(BOARD)
 
 ifeq ($(USE_THUMB_MODE),YES)
 THUMB    = -mthumb
-THUMB_IW = -mthumb-interwork
+#THUMB_IW = -mthumb-interwork
+THUMB_IW =
 else
 THUMB    =
 THUMB_IW =
@@ -270,7 +274,7 @@ endif
 #    -adhlns...: create assembler listing
 #
 # Flags for C and C++ (arm-elf-gcc/arm-elf-g++)
-CFLAGS =  -g
+CFLAGS =  -g3
 CFLAGS += -O$(OPT)
 CFLAGS += -mcpu=$(MCU) $(THUMB_IW)
 CFLAGS += $(CDEFS)
@@ -282,7 +286,7 @@ CFLAGS += $(patsubst %,-I%,$(EXTRAINCDIRS)) -I.
 #CFLAGS += -mapcs-frame
 #CFLAGS += -fomit-frame-pointer
 CFLAGS += -ffunction-sections -fdata-sections
-CFLAGS += -Wall -Wextra
+CFLAGS += -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable
 #CFLAGS += -pedantic
 CFLAGS += -Wimplicit -Wcast-align -Wpointer-arith
 CFLAGS += -Wredundant-decls -Wshadow -Wcast-qual -Wcast-align
@@ -333,6 +337,8 @@ LDFLAGS += -lgcc -lc -lm
 LDFLAGS += $(patsubst %,-L%,$(EXTRA_LIBDIRS))
 LDFLAGS += $(patsubst %,-L%,$(LINKERSCRIPTINC))
 LDFLAGS += $(patsubst %,-l%,$(EXTRA_LIBS))
+
+LDFLAGS += $(LD_EXTRA_FLAGS)
 
 # Set linker-script name depending on selected run-mode and chip
 ifeq ($(RUN_MODE),RAM_RUN)
@@ -435,7 +441,7 @@ end:
 
 # Display sizes of sections.
 # ELFSIZE = $(SIZE) -A $(OUTDIR)/$(TARGET).elf | egrep '^(section|Total|\.(text|data|bss|stack|heap))'
-ELFSIZE = $(SIZE) -A $(OUTDIR)/$(TARGET).elf
+ELFSIZE = $(SIZE) --format=berkeley $(OUTDIR)/$(TARGET).elf
 sizebefore:
 #	@if [ -f  $(OUTDIR)/$(TARGET).elf ]; then echo; echo $(MSG_SIZE_BEFORE); $(ELFSIZE); echo; fi
 
@@ -493,7 +499,8 @@ endif
 	@echo "  LINK  " $@
 # use $(CC) for C-only projects or $(CPP) for C++-projects:
 ifeq "$(strip $(CPPSRC)$(CPPARM))" ""
-	$(CC) $(THUMB) $(CFLAGS) $(ALLOBJ) --output $@ -nostartfiles $(LDFLAGS)
+#	$(CC) $(THUMB) $(CFLAGS) $(ALLOBJ) --output $@ -nostartfiles $(LDFLAGS)
+	$(CC) $(THUMB) $(CFLAGS) $(ALLOBJ) --output $@ $(LDFLAGS)
 else
 	@$(CPP) $(THUMB) $(CFLAGS) $(ALLOBJ) --output $@ $(LDFLAGS)
 endif
