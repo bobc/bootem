@@ -26,9 +26,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "uart.h"
+#include "pal_api.h"
+
 #include "protocol.h"
-#include "target.h"
 
 // --------------------------------------------------------------------------
 // Externals
@@ -181,6 +181,9 @@ static int get_word (int offset)
   return buf[offset+1] | (buf[offset] << 8);
 }
 
+/*
+ * return: 0 if valid frame, -1 if invalid
+ */
 int bl_get_cmd(void)
 {
   bool end_frame = false;
@@ -375,6 +378,7 @@ int run_protocol(void)
         bl_erase_flash();
         break;
       case CMD_GO:
+        flash_finalise();
         bl_go();
         break;
       default:
@@ -383,6 +387,8 @@ int run_protocol(void)
       }
     }
   }
+  //
+  flash_finalise();
   return 0;
 }
 

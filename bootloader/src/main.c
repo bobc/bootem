@@ -30,16 +30,17 @@
 
 
 
-#include "target.h"
+#include "pal_api.h"
+
 #include "board.h"
-#include "protocol.h"
 
 #include "boot_api.h"
 #include "bootloader.h"
+#include "protocol.h"
 
-int main() 
+int main()
 {
-	  hw_init();
+    hw_init();
 
     board_init ();
 
@@ -51,38 +52,38 @@ int main()
     {
       board_notify (bn_bootloader_requested);
     }
-    else 
+    else
     {
-        if (user_code_present()) 
+        if (user_code_present())
         {
           // user code valid
           board_notify (bn_user_code_valid);
 
-            // starting user code...
+          // starting user code
           board_notify (bn_jumping_to_user_code);
           initialise_bca();
           bca_set_response (BOOT_RES_NORMAL_BOOT);
-            execute_user_code();
+          execute_user_code();
         }
-        else 
+        else
         {
             // user code invalid
           board_notify (bn_user_code_invalid);
         }
     }
 
-          // enter bootloader
+    // enter bootloader
     initialise_bca();
-          board_notify (bn_protocol_idle);
+    board_notify (bn_protocol_idle);
     if (run_protocol())
     {
       board_notify (bn_jumping_to_user_code);
       bca_set_response (BOOT_RES_FIRMWARE_UPLOADED);
       execute_user_code();
-        }
+    }
     else
     {
       // what to do here?
       hw_reboot();
-    }        
+    }
 }
