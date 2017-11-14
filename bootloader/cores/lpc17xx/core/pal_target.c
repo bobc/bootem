@@ -33,8 +33,8 @@
 #include "lpc17xx_pinsel.h"
 #include "lpc17xx_gpio.h"
 
-#include "uart.h"
-#include "target.h"
+#include "pal_uart.h"
+#include "pal_target.h"
 
 // --------------------------------------------------------------------------
 // Externals

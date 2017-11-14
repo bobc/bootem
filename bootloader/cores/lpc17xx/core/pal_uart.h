@@ -27,8 +27,8 @@
   POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef	_UART_H
-#define	_UART_H
+#ifndef	_PAL_UART_H
+#define	_PAL_UART_H
 
 #include <stdbool.h>
 
@@ -42,4 +42,4 @@ void uart_send_byte(char byte);
 void uart_send_data(unsigned char *data, unsigned int count);
 void uart_writestr(unsigned char *data);
 
-#endif	/* _UART_H */
+#endif	/* _PAL_UART_H */

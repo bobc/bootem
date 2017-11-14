@@ -11,8 +11,8 @@
 // use without further testing or modification. 
 //-----------------------------------------------------------------------------
 
-#ifndef  _SBL_IAP_H
-#define  _SBL_IAP_H
+#ifndef  _PAL_FLASH_IAP_H
+#define  _PAL_FLASH_IAP_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -42,10 +42,11 @@
 uint32_t iap_read_part_id (void);
 uint32_t iap_read_unique_id (void);
 
-void erase_sectors (uint32_t startSector, uint32_t endSector);
-int erase_user_flash(void);
+uint32_t erase_sectors (uint32_t startSector, uint32_t endSector);
+uint32_t erase_user_flash(void);
+uint32_t write_flash(uint32_t dst, char * src, uint32_t no_of_bytes);
+
 void execute_user_code(void);
 bool user_code_present(void);
-unsigned write_flash(uint32_t dst, char * src, uint32_t no_of_bytes);
 
-#endif /* _SBL_IAP_H */
+#endif /* _PAL_FLASH_IAP_H */

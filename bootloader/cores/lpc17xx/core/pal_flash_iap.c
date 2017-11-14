@@ -15,8 +15,8 @@
 #include "lpc17xx_gpio.h"
 #include "lpc17xx_pinsel.h"
 
-#include "sbl_iap.h"
-#include "sbl_config.h"
+#include "pal_flash_iap.h"
+#include "core_config.h"
 
 //#include "config_pins.h"
 
@@ -185,7 +185,7 @@ uint32_t iap_read_unique_id (void)
 }
 
 
-unsigned write_flash(uint32_t dest, char * src, uint32_t no_of_bytes)
+uint32_t write_flash(uint32_t dest, char * src, uint32_t no_of_bytes)
 {
   unsigned i;
 
@@ -252,8 +252,8 @@ static void jump_to_user_code (uint32_t base_addr)
 
 void execute_user_code(void)
 {
-  //void (*user_code_entry)(void);
-//  unsigned *p;  // used for loading address of reset handler from user flash
+  // void (*user_code_entry)(void);
+  // unsigned *p;  // used for loading address of reset handler from user flash
 
   uint32_t addr=(uint32_t)USER_FLASH_START;
   // delay
@@ -278,7 +278,9 @@ void execute_user_code(void)
 	LPC_SC->CCLKCFG = 0x0;     //  Select the IRC as clk
 	LPC_SC->CLKSRCSEL = 0x00;
 	LPC_SC->SCS = 0x00;		    // not using XTAL anymore
-	delay_loop(1000);
+
+  delay_loop(1000);
+
 	// reset pipeline, sync bus and memory access
 	__asm (
 		   "dmb\n"
@@ -289,14 +291,9 @@ void execute_user_code(void)
   jump_to_user_code(addr);
 }
 
-bool user_code_present(void)
+static bool verify_checksum (uint32_t *pmem)
 {
-  iap_blank_check (USER_START_SECTOR, USER_START_SECTOR);
-  if( result_table[0] == IAP_CMD_SUCCESS )
-    return false;
-
-#ifdef COMPUTE_BINARY_CHECKSUM
-	unsigned *pmem, checksum,i;
+  uint32_t checksum, i;
 /*
  * The reserved Cortex-M3 exception vector location 7 (offset 0x001C
  * in the vector table) should contain the 2’s complement of the
@@ -306,32 +303,40 @@ bool user_code_present(void)
  * then the contents is deemed a 'valid' image.
  */
   checksum = 0;
-  pmem = (unsigned *)USER_FLASH_START;
   for (i = 0; i <= 7; i++)
   {
     checksum += *pmem;
     pmem++;
   }
-  if (checksum != 0)
+  return checksum == 0;
+}
+
+bool user_code_present(void)
+{
+#ifdef COMPUTE_CHECKSUM
+  if (!verify_checksum ((uint32_t *)USER_FLASH_START) )
   {
-    return (FALSE);
+    return false;
   }
-  else
+#else
+  iap_blank_check (USER_START_SECTOR, USER_START_SECTOR);
+  if( result_table[0] == IAP_CMD_SUCCESS )
+    return false;
 #endif
 
-  {
-    return true;
-  }
+  return true;
 }
 
 
-void erase_sectors(uint32_t start, uint32_t end)
+uint32_t erase_sectors(uint32_t start, uint32_t end)
 {
   iap_prepare_sector(start, end, SystemCoreClock/1000);
   iap_erase_sectors (start, end);
+
+  return result_table[0];
 }
 
-int erase_user_flash(void)
+uint32_t erase_user_flash(void)
 {
   iap_prepare_sector(USER_START_SECTOR, USER_END_SECTOR, SystemCoreClock/1000);
   iap_erase_sectors (USER_START_SECTOR, USER_END_SECTOR);

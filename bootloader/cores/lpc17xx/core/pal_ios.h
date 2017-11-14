@@ -27,32 +27,21 @@
   POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "lpc_types.h"
-#include "lpc17xx_gpio.h"
-#include "ios.h"
+#ifndef _PAL_IOS_H
+#define _PAL_IOS_H
 
-#if 0
-/* Initialize all the IO pins */
-/* Example of usage: pin_mode(PORT_0, X_STEP_PIN, OUTPUT); */
-void pin_mode(uint8_t portNum, uint32_t bitValue, uint8_t dir)
-{
-    FIO_SetDir(portNum, bitValue, dir);
-}
+#define INPUT 0
+#define OUTPUT 1
 
-/* Example of usage: digital_write(PORT_0, X_STEP_PIN, HIGH); */
-void digital_write(uint8_t portNum, uint32_t bitValue, uint8_t state)
-{
-    if (state)
-        FIO_SetValue(portNum, bitValue);
 
-    else
-        FIO_ClearValue(portNum, bitValue);
-}
 
-/* Example of usage: value = digital_read(PORT_0, PIN); */
-uint32_t digital_read(uint8_t portNum, uint32_t bitValue)
-{
-  return ((FIO_ReadValue(portNum) & bitValue)?1:0);
-}
+//void pin_mode(uint8_t portNum, uint32_t bitValue, uint8_t dir);
+//void     digital_write(uint8_t portNum, uint32_t bitmask, uint8_t bitValue);
+//uint32_t digital_read(uint8_t portNum, uint32_t bitmask);
+
+#define pin_mode(port, bitMask, value)      GPIO_SetDir(port, bitMask, value)
+#define digital_write(port, bitMask, value) FIO_SetMask(port, bitMask, value)
+
+#define digital_read(port, bitMask)         ((GPIO_ReadValue(port) & (bitMask))?1:0)
+
 #endif
-

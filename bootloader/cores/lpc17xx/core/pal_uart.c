@@ -30,7 +30,7 @@
 #include "lpc17xx_uart.h"
 #include "lpc17xx_pinsel.h"
 
-#include "uart.h"
+#include "pal_uart.h"
 
 #include "board.h"
 
